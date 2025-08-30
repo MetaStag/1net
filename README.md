@@ -1,28 +1,28 @@
-# ⚡ AI Smart Contract Generator
+# AI Smart Contract Generator
 
-> 🚀 Generate, audit, and deploy smart contracts from plain English using AI + MetaMask.  
+> Generate, audit, and deploy smart contracts from plain English using AI + MetaMask.  
 
 ---
 
-## 🌍 Problem
+## Problem
 Smart contracts are the backbone of Web3, but writing them requires deep Solidity knowledge.  
 This keeps **90% of creators and entrepreneurs locked out of Web3 innovation**.
 
 ---
 
-## 💡 Solution
+## Solution
 **AI Smart Contract Generator** allows anyone to describe their idea in natural language and instantly get a **secure, deployable contract**.
 
-- 📝 **Plain English → Solidity** (AI-powered)
-- 🔨 **Compile** with solc to ABI + Bytecode
-- 👛 **Deploy** via MetaMask & ethers.js
-- ⚠️ **Security Analyzer** (warns about risky code patterns)
-- ⛽ **Gas Estimation** before deployment
-- 🖱 **Instant Interaction** with deployed contracts (call functions directly)
+-  **Plain English → Solidity** (AI-powered)
+-  **Compile** with solc to ABI + Bytecode
+-  **Deploy** via MetaMask & ethers.js
+-  **Security Analyzer** (warns about risky code patterns)
+-  **Gas Estimation** before deployment
+-  **Instant Interaction** with deployed contracts (call functions directly) (planned for future)
 
 ---
 
-## 🔄 How It Works
+## How It Works - Example flow
 1. **Enter Prompt**  
    `"ERC20 token named HackathonCoin with 1B supply"`
 2. **AI Generation**  
@@ -39,8 +39,8 @@ This keeps **90% of creators and entrepreneurs locked out of Web3 innovation**.
 ## 🛠 Tech Stack
 - **Frontend**: React.Js + Typescript
 - **Backend**: Express.js + Gemini API
-- **Compiler**: solc-js + Hardhat
+- **Compiler**: Hardhat
 - **Blockchain**: ethers.js + MetaMask (Sepolia testnet)  
-- **Hosting**: AWS (Lambda / EC2)  
+- **Hosting**: AWS (planned)
 
 ---
