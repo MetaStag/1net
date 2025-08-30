@@ -130,60 +130,22 @@ export const DeploymentPanel: React.FC<DeploymentPanelProps> = ({
     }
   };
 
-  const compileContract = async (sourceCode: string) => {
+  const fetchCompiledContract = async (sourceCode: string) => {
     try {
-      // Use Remix Solidity compiler API for browser compatibility
-      const compilerInput = {
-        language: 'Solidity',
-        sources: {
-          'contract.sol': {
-            content: sourceCode
-          }
-        },
-        settings: {
-          outputSelection: {
-            '*': {
-              '*': ['abi', 'evm.bytecode']
-            }
-          }
-        }
-      };
-
-      // Use Remix compiler API
-      const response = await fetch('https://binaries.soliditylang.org/bin/soljson-v0.8.19+commit.7dd6d404.js');
+      const response = await fetch("http://localhost:8000/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: sourceCode })
+      });
       if (!response.ok) {
-        throw new Error('Failed to fetch Solidity compiler');
+        throw new Error("Failed to compile contract on backend");
       }
-      
-      const solcSnapshot = await response.text();
-      
-      // Create a mock compilation result for demo purposes
-      // In a real implementation, you would use the fetched compiler
-      const contractName = sourceCode.match(/contract\s+(\w+)/)?.[1] || 'Contract';
-      
-      const mockABI = contractSpec?.type === 'ERC20' ? [
-        {"inputs":[{"internalType":"uint256","name":"_totalSupply","type":"uint256"}],"stateMutability":"nonpayable","type":"constructor"},
-        {"inputs":[],"name":"name","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},
-        {"inputs":[],"name":"symbol","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},
-        {"inputs":[],"name":"totalSupply","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
-        {"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
-        {"inputs":[{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"transfer","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"}
-      ] : [
-        {"inputs":[{"internalType":"string","name":"_name","type":"string"},{"internalType":"string","name":"_symbol","type":"string"}],"stateMutability":"nonpayable","type":"constructor"},
-        {"inputs":[],"name":"name","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},
-        {"inputs":[],"name":"symbol","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},
-        {"inputs":[{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"mint","outputs":[],"stateMutability":"nonpayable","type":"function"}
-      ];
-
-      const mockBytecode = "0x608060405234801561001057600080fd5b50" + Array(1000).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-      
-      return {
-        abi: mockABI,
-        bytecode: mockBytecode
-      };
+      const data = await response.json();
+      // Expect { abi, bytecode } from backend
+      return { abi: data.abi, bytecode: data.bytecode };
     } catch (error) {
-      console.error('Compilation error:', error);
-      throw new Error('Contract compilation failed: ' + (error as Error).message);
+      console.error("Compilation error:", error);
+      throw new Error("Contract compilation failed: " + (error as Error).message);
     }
   };
 
@@ -191,16 +153,16 @@ export const DeploymentPanel: React.FC<DeploymentPanelProps> = ({
     if (!isConnected || !contractCode) return;
 
     setIsDeploying(true);
-    
+
     try {
       toast({
         title: "Compiling Contract",
-        description: "Compiling your smart contract with solc-js...",
+        description: "Compiling your smart contract on backend...",
       });
 
-      // Compile the contract
-      const { abi, bytecode } = await compileContract(contractCode);
-      
+      // Compile the contract via backend API
+      const { abi, bytecode } = await fetchCompiledContract(contractCode);
+
       toast({
         title: "Compilation Successful",
         description: "Connecting to Ethereum network...",
@@ -209,26 +171,41 @@ export const DeploymentPanel: React.FC<DeploymentPanelProps> = ({
       // Connect to Ethereum provider
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-      
+
       // Create contract factory
       const factory = new ethers.ContractFactory(abi, bytecode, signer);
-      
-      // Deploy contract with constructor arguments if needed
+
+      // Prepare constructor arguments
       let deployArgs: any[] = [];
       if (contractSpec?.type === 'ERC20') {
-        deployArgs = [contractSpec.supply || '1000000'];
+        // ERC20 expects: name, symbol, (optionally initialSupply)
+        deployArgs = [
+          contractSpec.name || 'MyToken',
+          contractSpec.symbol || 'MTKN',
+          contractSpec.supply || '1000000'
+        ];
       } else if (contractSpec?.type === 'ERC721') {
-        deployArgs = [contractSpec.name || 'MyNFT', contractSpec.symbol || 'NFT'];
+        // ERC721 expects: name, symbol
+        deployArgs = [
+          contractSpec.name || 'MyNFT',
+          contractSpec.symbol || 'NFT'
+        ];
       }
+
+      // Prepare overrides object for gas price
+      const overrides = {
+        gasPrice: ethers.parseUnits(gasPrice, "gwei")
+      };
 
       toast({
         title: "Deploying Contract",
         description: "Sending transaction to blockchain...",
       });
 
-      const contract = await factory.deploy(...deployArgs);
+      // Deploy contract with overrides
+      const contract = await factory.deploy(...deployArgs, overrides);
       const receipt = await contract.deploymentTransaction()?.wait();
-      
+
       if (!receipt) {
         throw new Error('Deployment transaction failed');
       }
@@ -241,7 +218,7 @@ export const DeploymentPanel: React.FC<DeploymentPanelProps> = ({
       };
 
       setDeploymentResult(result);
-      
+
       toast({
         title: "Contract Deployed Successfully!",
         description: `Contract deployed at ${result.contractAddress}`,
