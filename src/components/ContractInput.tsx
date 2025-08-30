@@ -7,6 +7,9 @@ import { Loader2, Sparkles, ArrowRight } from "lucide-react";
 import { ContractSpec } from "./SmartContractBuilder";
 import { useToast } from "@/hooks/use-toast";
 
+// Read Gemini API key from environment variable
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
+
 interface ContractInputProps {
   onSpecGenerated: (spec: ContractSpec) => void;
 }
@@ -23,11 +26,59 @@ export const ContractInput: React.FC<ContractInputProps> = ({ onSpecGenerated })
     "NFT marketplace token with royalties and batch minting"
   ];
 
+  // AI-powered parsing fallback
+  const aiParseUserInput = async (userInput: string): Promise<ContractSpec | null> => {
+    if (!GEMINI_API_KEY.trim()) return null;
+
+    const prompt = `Extract the following fields from the user's smart contract description:
+1. Contract type (ERC20, ERC721, or ERC1155)
+2. Name
+3. Symbol
+
+Return a JSON object with keys: type, name, symbol. If any field cannot be determined, return null for that field. Only respond with the JSON object. User input: "${userInput}"`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.1,
+            topK: 1,
+            topP: 1,
+            maxOutputTokens: 256,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+    try {
+      const parsed = JSON.parse(text);
+      if (!parsed.type || !parsed.name || !parsed.symbol) return null;
+      return {
+        type: parsed.type,
+        name: parsed.name,
+        symbol: parsed.symbol,
+        supply: undefined,
+        description: userInput,
+        features: [],
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const parseUserInput = async (userInput: string): Promise<ContractSpec> => {
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
+
     const lowercaseInput = userInput.toLowerCase();
-    
+
     // Determine contract type
     let type: 'ERC20' | 'ERC721' | 'ERC1155' = 'ERC20';
     if (lowercaseInput.includes('nft') || lowercaseInput.includes('721') || lowercaseInput.includes('collection')) {
@@ -63,6 +114,13 @@ export const ContractInput: React.FC<ContractInputProps> = ({ onSpecGenerated })
     if (lowercaseInput.includes('royalt')) features.push('royalties');
     if (lowercaseInput.includes('batch')) features.push('batch');
 
+    // If name or type is missing, try AI parsing
+    if (!name || !type || !symbol || name === 'MyToken' || name === 'MyNFT') {
+      const aiSpec = await aiParseUserInput(userInput);
+      if (!aiSpec) throw new Error("AI could not extract contract details");
+      return aiSpec;
+    }
+
     return {
       type,
       name,
@@ -89,8 +147,8 @@ export const ContractInput: React.FC<ContractInputProps> = ({ onSpecGenerated })
       onSpecGenerated(spec);
     } catch (error) {
       toast({
-        title: "Processing Error",
-        description: "Failed to parse your requirements. Please try again.",
+        title: "Invalid Input",
+        description: "Could not extract contract type, name, or symbol. Please clarify your input.",
         variant: "destructive"
       });
     } finally {
